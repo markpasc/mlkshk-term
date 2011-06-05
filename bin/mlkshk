@@ -1,0 +1,160 @@
+#!/usr/bin/env python
+
+import base64
+from datetime import datetime
+from functools import wraps
+import json
+from hashlib import md5, sha1
+import hmac
+import logging
+import os.path
+import random
+import sys
+import time
+from urllib import urlencode
+from urlparse import urljoin, urlsplit
+import webbrowser
+
+import httplib2
+from poster.encode import multipart_encode
+from termtool import Termtool, subcommand, argument
+
+
+class SignedHttp(httplib2.Http):
+
+    def __init__(self, args, cache=None, timeout=None, proxy_info=None):
+        httplib2.Http.__init__(self, cache, timeout, proxy_info)
+        self.site = args.site
+        self.api_key = args.api_key
+        self.api_secret = args.api_secret
+        self.access_token, self.access_secret = args.access_token.split(':', 1)
+
+    def request(self, uri, method="GET", body='', headers=None,
+        redirections=httplib2.DEFAULT_MAX_REDIRECTS, connection_type=None):
+
+        timestamp = int(time.mktime(datetime.utcnow().timetuple()))
+        nonce = md5("%s" % random.random()).hexdigest() #you might want to generate better nonces
+
+        uri = urljoin(self.site, uri)
+        logging.debug("Requesting URL %s", uri)
+        uriparts = urlsplit(uri)
+        if ':' in uriparts.netloc:
+            host, port = uriparts.netloc.split(':', 1)
+        else:
+            host, port = uriparts.netloc, '80'  # even if it's https (API bug)
+
+        normalized_string = '\n'.join((self.access_token, str(timestamp), nonce, method, host, port, uriparts.path))
+        normalized_string += '\n'  # plus a trailing nl for the path
+        # note, we're not including the query string because there isn't one.
+
+        # now we sign the request
+        digest = hmac.new(self.access_secret.encode('ascii'), normalized_string, sha1).digest()
+        signature = base64.encodestring(digest).strip() # we strip the end off because it gives us a \n at the end
+        authorization_string = 'MAC token="%s", timestamp="%s", nonce="%s", signature="%s"' % (self.access_token, str(timestamp), nonce, signature)
+
+        headers = {} if headers is None else dict(headers)
+        headers['Authorization'] = authorization_string
+
+        return httplib2.Http.request(self, uri, method, body, headers, redirections, connection_type)
+
+
+def authd(fn):
+    @wraps(fn)
+    def moo(self, args):
+        if not all((args.api_key, args.api_secret, args.access_token)):
+            logging.error("Not configured to use MLKSHK API yet; try 'configure' command first")
+            sys.exit(1)
+
+        client = SignedHttp(args)
+        return fn(self, args, client)
+    return moo
+
+
+@argument('--site', default='https://mlkshk.com/', help='site at which to talk to MLKSHK')
+@argument('--api-key', help='MLKSHK application API key')
+@argument('--api-secret', help='MLKSHK application API secret')
+@argument('--access-token', help='MLKSHK access token (in `token:secret` format)')
+class Mlkshk(Termtool):
+
+    description = 'Control MLKSHK from the command line.'
+
+    @subcommand(help='configures the API keys')
+    def configure(self, args):
+        if not args.api_key:
+            args.api_key = raw_input('API key: ')
+        if not args.api_secret:
+            args.api_secret = raw_input('API secret: ')
+        if not args.access_token:
+            data_store = dict()
+            logging.debug("TOKEN IS: %r", args.api_key)
+
+            REDIRECT_URL = 'oob'
+            auth_url = urljoin(args.site, '/api/authorize?response_type=code&client_id=%s&redirect_uri=%s' % (args.api_key, REDIRECT_URL))
+            webbrowser.open(auth_url, new=1)
+
+            verifier = raw_input("Code: ")
+
+            access_req_data = {
+                'grant_type': 'authorization_code',
+                'code': verifier,
+                'redirect_uri': REDIRECT_URL,
+                'client_id': args.api_key,
+                'client_secret': args.api_secret,
+            }
+            access_req = urlencode(access_req_data)
+            logging.debug("ACCESS REQUEST: %s", access_req)
+
+            h = httplib2.Http()
+            access_token_url = urljoin(args.site, '/api/token')
+            resp, cont = h.request(access_token_url, 'POST', access_req, {'Content-Type': 'application/x-www-form-urlencoded'})
+            assert resp.status == 200, 'not a 200 but a %d from getting access token: %s' % (resp.status, cont)
+
+            token_data = json.loads(cont)
+            args.access_token = ':'.join(token_data[f] for f in ('access_token', 'secret'))
+            logging.debug("ACCESS TOKEN: %r", args.access_token)
+
+        filepath = os.path.expanduser('~/.%s' % os.path.basename(__file__))
+        # Don't let anybody else read the config file.
+        os.umask(077)
+        with open(filepath, 'w') as config_file:
+            config_file.write('--site\n')
+            config_file.write(args.site)
+            config_file.write('\n--api-key\n')
+            config_file.write(args.api_key)
+            config_file.write('\n--api-secret\n')
+            config_file.write(args.api_secret)
+            config_file.write('\n--access-token\n')
+            config_file.write(args.access_token)
+            config_file.write('\n')
+
+        print "Configured!"
+
+    @subcommand(help='list your shakes')
+    @authd
+    def shakes(self, args, client):
+        resp, cont = client.request('/api/shakes')
+        assert resp.status == 200, 'not a 200 but a %d from fetching shakes: %s' % (resp.status, cont)
+        data = json.loads(cont)
+
+        table = self.table(['ID', 'Name', 'Owner', 'Type', 'URL'])
+        for shake in data['shakes']:
+            table.add_row([shake['id'], shake['name'], shake['owner']['name'], shake['type'], shake['url']])
+        table.printt()
+
+    @subcommand(help='upload an image to a shake')
+    @argument('file', help='name of the image file to upload')
+    @argument('--shake', metavar='ID', help='shake to upload to (default: your user shake)')
+    @authd
+    def upload(self, args, client):
+        request = {
+            'file': open(args.file, 'rb'),
+        }
+        if args.shake:
+            request['shake_id'] = args.shake
+
+        bodygen, headers = multipart_encode(request)
+        client.request('/api/upload', 'POST', ''.join(bodygen), headers)
+
+
+if __name__ == '__main__':
+    Mlkshk().run()

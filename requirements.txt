@@ -1,0 +1,6 @@
+-e git+https://github.com/markpasc/termtool.git#egg=termtool
+argparse
+prettytable
+progressbar
+poster
+httplib2
