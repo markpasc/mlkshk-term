@@ -113,19 +113,12 @@ class Mlkshk(Termtool):
             args.access_token = ':'.join(token_data[f] for f in ('access_token', 'secret'))
             logging.debug("ACCESS TOKEN: %r", args.access_token)
 
-        filepath = os.path.expanduser('~/.%s' % os.path.basename(__file__))
-        # Don't let anybody else read the config file.
-        os.umask(077)
-        with open(filepath, 'w') as config_file:
-            config_file.write('--site\n')
-            config_file.write(args.site)
-            config_file.write('\n--api-key\n')
-            config_file.write(args.api_key)
-            config_file.write('\n--api-secret\n')
-            config_file.write(args.api_secret)
-            config_file.write('\n--access-token\n')
-            config_file.write(args.access_token)
-            config_file.write('\n')
+        self.write_config_file(
+            '--site', args.site,
+            '--api-key', args.api_key,
+            '--api-secret', args.api_secret,
+            '--access-token', args.access_token,
+        )
 
         print "Configured!"
 
