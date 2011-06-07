@@ -17,7 +17,9 @@ import webbrowser
 
 import httplib2
 from poster.encode import multipart_encode
+from poster.streaminghttp import register_openers
 from termtool import Termtool, subcommand, argument
+import urllib2
 
 
 class SignedHttp(httplib2.Http):
@@ -29,14 +31,12 @@ class SignedHttp(httplib2.Http):
         self.api_secret = args.api_secret
         self.access_token, self.access_secret = args.access_token.split(':', 1)
 
-    def request(self, uri, method="GET", body='', headers=None,
-        redirections=httplib2.DEFAULT_MAX_REDIRECTS, connection_type=None):
-
+    def sign_request(self, uri, method):
         timestamp = int(time.mktime(datetime.utcnow().timetuple()))
         nonce = md5("%s" % random.random()).hexdigest() #you might want to generate better nonces
 
         uri = urljoin(self.site, uri)
-        logging.debug("Requesting URL %s", uri)
+        logging.debug("Signing request for URL %s", uri)
         uriparts = urlsplit(uri)
         if ':' in uriparts.netloc:
             host, port = uriparts.netloc.split(':', 1)
@@ -52,9 +52,13 @@ class SignedHttp(httplib2.Http):
         signature = base64.encodestring(digest).strip() # we strip the end off because it gives us a \n at the end
         authorization_string = 'MAC token="%s", timestamp="%s", nonce="%s", signature="%s"' % (self.access_token, str(timestamp), nonce, signature)
 
-        headers = {} if headers is None else dict(headers)
-        headers['Authorization'] = authorization_string
+        return uri, authorization_string
 
+    def request(self, uri, method="GET", body='', headers=None,
+        redirections=httplib2.DEFAULT_MAX_REDIRECTS, connection_type=None):
+
+        headers = {} if headers is None else dict(headers)
+        uri, headers['Authorization'] = self.sign_request(uri, method)
         return httplib2.Http.request(self, uri, method, body, headers, redirections, connection_type)
 
 
@@ -145,8 +149,25 @@ class Mlkshk(Termtool):
         if args.shake:
             request['shake_id'] = args.shake
 
-        bodygen, headers = multipart_encode(request)
-        client.request('/api/upload', 'POST', ''.join(bodygen), headers)
+        class Progressator(object):
+            def __init__(self, progressbar):
+                self.bar = progressbar
+            def show_progress(self, param, current, total):
+                if self.bar.maxval is None:
+                    self.bar.maxval = total
+                    self.bar.start()
+                self.bar.update(current)
+
+        register_openers()
+        progress = Progressator(self.progressbar())
+        bodygen, headers = multipart_encode(request, cb=progress.show_progress)
+
+        uri, auth_header = client.sign_request('/api/upload', 'POST')
+        headers['Authorization'] = headers
+
+        request = urllib2.Request(uri, bodygen, headers)
+        urllib2.urlopen(request)
+        progress.bar.finish()
 
 
 if __name__ == '__main__':
