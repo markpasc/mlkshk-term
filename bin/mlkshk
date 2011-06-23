@@ -138,6 +138,18 @@ class Mlkshk(Termtool):
             table.add_row([shake['id'], shake['name'], shake['owner']['name'], shake['type'], shake['url']])
         table.printt()
 
+    @subcommand(help='list the most recent "magic" files')
+    @authd
+    def magic(self, args, client):
+        resp, cont = client.request('/api/magicfiles')
+        assert resp.status == 200, 'not a 200 but a %d from fetching magic files: %s' % (resp.status, cont)
+        data = json.loads(cont)
+
+        table = self.table(['Key', 'Title', 'Poster', 'Likes', 'URL'])
+        for magic in data['magicfiles']:
+            table.add_row([magic['sharekey'], magic['title'], magic['user']['name'], magic['like_count'], magic['permalink_page']])
+        table.printt()
+
     @subcommand(help='upload an image to a shake')
     @argument('file', help='name of the image file to upload')
     @argument('--shake', metavar='ID', help='shake to upload to (default: your user shake)')
