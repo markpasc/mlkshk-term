@@ -145,9 +145,9 @@ class Mlkshk(Termtool):
         assert resp.status == 200, 'not a 200 but a %d from fetching magic files: %s' % (resp.status, cont)
         data = json.loads(cont)
 
-        table = self.table(['Key', 'Title', 'Poster', 'Likes', 'URL'])
+        table = self.table(['Title', 'Poster', 'Views', 'URL'])
         for magic in data['magicfiles']:
-            table.add_row([magic['sharekey'], magic['title'], magic['user']['name'], magic['like_count'], magic['permalink_page']])
+            table.add_row([magic['title'] or magic['name'], magic['user']['name'], magic['views'], magic['permalink_page']])
         table.printt()
 
     @subcommand(help='upload an image to a shake')
