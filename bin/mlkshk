@@ -138,6 +138,15 @@ class Mlkshk(Termtool):
             table.add_row([shake['id'], shake['name'], shake['owner']['name'], shake['type'], shake['url']])
         table.printt()
 
+    @subcommand(help='"like" a file into your favorites')
+    @argument('sharekey', help='sharekey of the file to like')
+    @authd
+    def like(self, args, client):
+        resp, cont = client.request('/api/sharedfile/%s/like' % args.sharekey.upper(), 'POST', '')
+        assert resp.status == 200, 'not a 200 but a %d from "like"ing a file: %s' % (resp.status, cont)
+        data = json.loads(cont)
+        logging.info("Liked! File has %d likes", data['likes'])
+
     @subcommand(help='list the most recent "magic" files')
     @authd
     def magic(self, args, client):
