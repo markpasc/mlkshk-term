@@ -108,7 +108,7 @@ class Mlkshk(Termtool):
             access_req = urlencode(access_req_data)
             logging.debug("ACCESS REQUEST: %s", access_req)
 
-            h = httplib2.Http()
+            h = httplib2.Http(disable_ssl_certificate_validation=True)
             access_token_url = urljoin(args.site, '/api/token')
             resp, cont = h.request(access_token_url, 'POST', access_req, {'Content-Type': 'application/x-www-form-urlencoded'})
             assert resp.status == 200, 'not a 200 but a %d from getting access token: %s' % (resp.status, cont)
