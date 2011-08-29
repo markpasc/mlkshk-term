@@ -83,17 +83,19 @@ class Mlkshk(Termtool):
     description = 'Control MLKSHK from the command line.'
 
     @subcommand(help='configures the API keys')
+    @argument('--redirect-url', help='MLKSHK application redirect URL')
     def configure(self, args):
         if not args.api_key:
             args.api_key = raw_input('API key: ')
         if not args.api_secret:
             args.api_secret = raw_input('API secret: ')
+        if not args.redirect_url:
+            args.redirect_url = raw_input('Redirect URL: ')
         if not args.access_token:
             data_store = dict()
             logging.debug("TOKEN IS: %r", args.api_key)
 
-            REDIRECT_URL = 'oob'
-            auth_url = urljoin(args.site, '/api/authorize?response_type=code&client_id=%s&redirect_uri=%s' % (args.api_key, REDIRECT_URL))
+            auth_url = urljoin(args.site, '/api/authorize?response_type=code&client_id=%s&redirect_uri=%s' % (args.api_key, args.redirect_url))
             webbrowser.open(auth_url, new=1)
 
             verifier = raw_input("Code: ")
@@ -101,7 +103,7 @@ class Mlkshk(Termtool):
             access_req_data = {
                 'grant_type': 'authorization_code',
                 'code': verifier,
-                'redirect_uri': REDIRECT_URL,
+                'redirect_uri': args.redirect_url,
                 'client_id': args.api_key,
                 'client_secret': args.api_secret,
             }
