@@ -4,6 +4,8 @@
 
 * list your shakes
 * upload a file from your computer to a shake
+* add a file to your favorites
+* list recent popular files
 
 
 ## Installation ##
@@ -26,10 +28,11 @@ First, you'll need a MLKSHK API key. Register an application in the developers s
     $ mlkshk configure
     API key: 68-A
     API secret: f73D85A83def7BC29580FEB9f087A69Bc6bfacd1DDDBEBfb2bAF52c1
+    Redirect URL: http://localhost/
     Code: 13b24c7D485A9C4e99F1B4b163ddAE6eE4b9917e
     Configured!
 
-After entering your API secret, the authorization page should open in your web browser. After approving your app, copy the `code` from the URL of the resulting error page and paste it at the `Code:` prompt.
+After entering your API secret and redirect URL, the authorization page should open in your web browser. After approving your app, copy the `code` from the URL of the resulting page and paste it at the `Code:` prompt.
 
 
 ## Usage ##
