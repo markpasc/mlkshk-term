@@ -186,7 +186,7 @@ class Mlkshk(Termtool):
         bodygen, headers = multipart_encode(request, cb=progress.show_progress)
 
         uri, auth_header = client.sign_request('/api/upload', 'POST')
-        headers['Authorization'] = headers
+        headers['Authorization'] = auth_header
 
         exc = None
         request = urllib2.Request(uri, bodygen, headers)
