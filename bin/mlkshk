@@ -128,6 +128,43 @@ class Mlkshk(Termtool):
 
         print "Configured!"
 
+    def sharedfiles(self, args, client, api_endpoint ,api_responsekey):
+        resp, cont = client.request('/api/%s' % (api_endpoint) )
+        assert resp.status == 200, 'not a 200 but a %d from fetching %s: %s' % (resp.status, api_endpoint, cont)
+        data = json.loads(cont)
+
+        table = self.table(['Title', 'Poster', 'Views', 'URL']) 
+        for sharedfile in data[api_responsekey]:
+            table.add_row([sharedfile['title'] or sharedfile['name'], sharedfile['user']['name'], sharedfile['views'], sharedfile['permalink_page']])
+            #table.add_row([sharedfile['sharekey'], sharedfile['name'], sharedfile['user']['name'], sharedfile['title'], sharedfile['permalink_page']])
+        table.printt()
+
+
+    @subcommand(help='files you "liked" most recently')
+    @authd
+    def favorites(self, args, client):
+        self.sharedfiles(args, client, 'favorites','favorites')
+        
+
+    @subcommand(help='files posted by users you follow')
+    @authd
+    def friends(self, args, client):
+        self.sharedfiles(args, client, 'friends','friend_shake')
+
+        
+    @subcommand(help='list the most recent "magic" files')
+    @authd
+    def magic(self, args, client):
+        self.sharedfiles(args, client, 'magicfiles','magicfiles')
+
+    @subcommand(help='list the most recent files on a specified shake')
+    @argument('shake_id', help='sharekey of the file to like')
+    @authd
+    def shake(self, args, client):
+        #assert args.shake_id, 'shake_id required for this command'
+        self.sharedfiles(args, client, 'shakes/%s'%(args.shake_id),'sharedfiles')
+
+
     @subcommand(help='list your shakes')
     @authd
     def shakes(self, args, client):
@@ -149,17 +186,6 @@ class Mlkshk(Termtool):
         data = json.loads(cont)
         logging.info("Liked! File has %d likes", data['likes'])
 
-    @subcommand(help='list the most recent "magic" files')
-    @authd
-    def magic(self, args, client):
-        resp, cont = client.request('/api/magicfiles')
-        assert resp.status == 200, 'not a 200 but a %d from fetching magic files: %s' % (resp.status, cont)
-        data = json.loads(cont)
-
-        table = self.table(['Title', 'Poster', 'Views', 'URL'])
-        for magic in data['magicfiles']:
-            table.add_row([magic['title'] or magic['name'], magic['user']['name'], magic['views'], magic['permalink_page']])
-        table.printt()
 
     @subcommand(help='upload an image to a shake')
     @argument('file', help='name of the image file to upload')
