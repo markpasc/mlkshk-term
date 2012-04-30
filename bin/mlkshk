@@ -164,6 +164,8 @@ class Mlkshk(Termtool):
     @subcommand(help='upload an image to a shake')
     @argument('file', help='name of the image file to upload')
     @argument('--shake', metavar='ID', help='shake to upload to (default: your user shake)')
+    @argument('--title', help='text for the image title (optional)')
+    @argument('--description', help='text for the image description (optional)')
     @authd
     def upload(self, args, client):
         request = {
@@ -171,6 +173,10 @@ class Mlkshk(Termtool):
         }
         if args.shake:
             request['shake_id'] = args.shake
+        if args.title:
+            request['title'] = args.title
+        if args.description:
+            request['description'] = args.description
 
         class Progressator(object):
             def __init__(self, progressbar):
