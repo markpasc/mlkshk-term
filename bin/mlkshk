@@ -128,6 +128,21 @@ class Mlkshk(Termtool):
 
         print "Configured!"
 
+    def resolve_shake_id(self, client, shake_id):
+        rvalue=shake_id   #If the shake_id matches a shake name, return the ID, otherwise return the shake_id
+        resp, cont = client.request('/api/shakes')
+        assert resp.status == 200, 'not a 200 but a %d from fetching shakes: %s' % (resp.status, cont)
+        data = json.loads(cont)
+        
+        for shake in data['shakes']:
+            if shake['name']==shake_id:
+                rvalue=shake['id']
+                break
+        
+        return rvalue
+        
+
+    # General Function for API Calls that return list of sharedfiles {MAGIC,FRIENDS,FAVORITES,SHAKE(shake_id)}
     def sharedfiles(self, args, client, api_endpoint ,api_responsekey):
         resp, cont = client.request('/api/%s' % (api_endpoint) )
         assert resp.status == 200, 'not a 200 but a %d from fetching %s: %s' % (resp.status, api_endpoint, cont)
@@ -136,7 +151,6 @@ class Mlkshk(Termtool):
         table = self.table(['Title', 'Poster', 'Views', 'URL']) 
         for sharedfile in data[api_responsekey]:
             table.add_row([sharedfile['title'] or sharedfile['name'], sharedfile['user']['name'], sharedfile['views'], sharedfile['permalink_page']])
-            #table.add_row([sharedfile['sharekey'], sharedfile['name'], sharedfile['user']['name'], sharedfile['title'], sharedfile['permalink_page']])
         table.printt()
 
 
@@ -161,8 +175,8 @@ class Mlkshk(Termtool):
     @argument('shake_id', help='sharekey of the file to like')
     @authd
     def shake(self, args, client):
-        #assert args.shake_id, 'shake_id required for this command'
-        self.sharedfiles(args, client, 'shakes/%s'%(args.shake_id),'sharedfiles')
+        shake_id=self.resolve_shake_id(client,args.shake_id)   # Take Either a Numeric or Named Shake ID (currently only supports the authorized users shakes for name resolution)
+        self.sharedfiles(args, client, 'shakes/%s'%(shake_id),'sharedfiles')
 
 
     @subcommand(help='list your shakes')
@@ -198,7 +212,8 @@ class Mlkshk(Termtool):
             'file': open(args.file, 'rb'),
         }
         if args.shake:
-            request['shake_id'] = args.shake
+            # Take Either a Numeric or Named Shake ID (currently only supports the authorized users shakes for name resolution)
+            request['shake_id'] = self.resolve_shake_id(client,args.shake)
         if args.title:
             request['title'] = args.title
         if args.description:
