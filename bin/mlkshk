@@ -235,9 +235,29 @@ class Mlkshk(Termtool):
         uri, auth_header = client.sign_request('/api/upload', 'POST')
         headers['Authorization'] = auth_header
 
+        exc = None
         request = urllib2.Request(uri, bodygen, headers)
-        urllib2.urlopen(request)
-        progress.bar.finish()
+        try:
+            urllib2.urlopen(request)
+        except urllib2.HTTPError, exc:
+            pass
+        finally:
+            progress.bar.finish()
+
+        if not exc:
+            return
+        if exc.code == 401:
+            # There's a better message in the WWW-Authorize header, if we can get it.
+            resp_headers = exc.info()
+            www_auth_header = resp_headers.get('www-authenticate')
+            if www_auth_header:
+                _, _, value = www_auth_header.partition('MAC realm="mlkshk" ')
+                if value:
+                    www_auth_data = urllib2.parse_keqv_list(urllib2.parse_http_list(value))
+                    logging.error('%(error)s error authenticating to MLKSHK: %(error_description)s' % www_auth_data)
+                    return
+
+        logging.error(str(exc))
 
 
 if __name__ == '__main__':

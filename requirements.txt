@@ -1,0 +1,5 @@
+httplib2
+prettytable
+progressbar
+termtool
+poster
