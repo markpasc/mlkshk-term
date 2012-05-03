@@ -154,10 +154,25 @@ class Mlkshk(Termtool):
         table.printt()
 
 
+    @subcommand(help='files added to mlkshk most recently')
+    @argument('api',help='generic api call')
+    @authd
+    def api(self, args, client):
+        resp, cont = client.request('/api/%s' % (args.api) )
+        assert resp.status == 200, 'not a 200 but a %d from fetching: %s' % (resp.status,  cont)
+        data = json.loads(cont)
+        print json.dumps(data,indent=2)
+
+
     @subcommand(help='files you "liked" most recently')
     @authd
     def favorites(self, args, client):
         self.sharedfiles(args, client, 'favorites','favorites')
+
+    @subcommand(help='most recent files uploaded')
+    @authd
+    def incoming(self, args, client):
+        self.sharedfiles(args, client, 'incoming','incoming')
         
 
     @subcommand(help='files posted by users you follow')
