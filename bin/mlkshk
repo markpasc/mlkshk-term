@@ -33,7 +33,8 @@ class SignedHttp(httplib2.Http):
 
     def sign_request(self, uri, method):
         timestamp = int(time.mktime(datetime.utcnow().timetuple()))
-        nonce = md5("%s" % random.random()).hexdigest() #you might want to generate better nonces
+        # you might want to generate better nonces
+        nonce = md5("%s" % random.random()).hexdigest()
 
         uri = urljoin(self.site, uri)
         logging.debug("Signing request for URL %s", uri)
@@ -63,6 +64,7 @@ class SignedHttp(httplib2.Http):
 
 
 def authd(fn):
+
     @wraps(fn)
     def moo(self, args):
         if not all((args.api_key, args.api_secret, args.access_token)):
@@ -95,7 +97,8 @@ class Mlkshk(Termtool):
             data_store = dict()
             logging.debug("TOKEN IS: %r", args.api_key)
 
-            auth_url = urljoin(args.site, '/api/authorize?response_type=code&client_id=%s&redirect_uri=%s' % (args.api_key, args.redirect_url))
+            auth_url = urljoin(args.site, ('/api/authorize?response_type=code&client_id=%s&redirect_uri=%s' %
+                                           (args.api_key, args.redirect_url)))
             webbrowser.open(auth_url, new=1)
 
             verifier = raw_input("Code: ")
@@ -112,8 +115,12 @@ class Mlkshk(Termtool):
 
             h = httplib2.Http(disable_ssl_certificate_validation=True)
             access_token_url = urljoin(args.site, '/api/token')
-            resp, cont = h.request(access_token_url, 'POST', access_req, {'Content-Type': 'application/x-www-form-urlencoded'})
-            assert resp.status == 200, 'not a 200 but a %d from getting access token: %s' % (resp.status, cont)
+            resp, cont = h.request(access_token_url,
+                                   'POST',
+                                   access_req,
+                                   {'Content-Type': 'application/x-www-form-urlencoded'})
+            assert resp.status == 200, ('not a 200 but a %d from getting access token: %s' %
+                                        (resp.status, cont))
 
             token_data = json.loads(cont)
             args.access_token = ':'.join(token_data[f] for f in ('access_token', 'secret'))
@@ -129,28 +136,39 @@ class Mlkshk(Termtool):
         print "Configured!"
 
     def resolve_shake_id(self, client, shake_id):
-        rvalue=shake_id   #If the shake_id matches a shake name, return the ID, otherwise return the shake_id
+        # If the shake_id matches a shake name,
+        #     return the ID,
+        # otherwise
+        #     return the shake_id itself
+
+        rvalue = shake_id
         resp, cont = client.request('/api/shakes')
-        assert resp.status == 200, 'not a 200 but a %d from fetching shakes: %s' % (resp.status, cont)
+        assert resp.status == 200, ('not a 200 but a %d from fetching shakes: %s' %
+                                    (resp.status, cont)
         data = json.loads(cont)
-        
+
         for shake in data['shakes']:
-            if shake['name']==shake_id:
-                rvalue=shake['id']
+            if shake['name'] == shake_id:
+                rvalue = shake['id']
                 break
-        
-        return rvalue
-        
 
-    # General Function for API Calls that return list of sharedfiles {MAGIC,FRIENDS,FAVORITES,SHAKE(shake_id)}
-    def sharedfiles(self, args, client, api_endpoint ,api_responsekey):
+        return rvalue
+
+
+    # General Function for API Endpointss that return list of sharedfiles
+    # Including:   MAGIC,FRIENDS,FAVORITES,SHAKE(shake_id)
+    def sharedfiles(self, args, client, api_endpoint, api_responsekey):
         resp, cont = client.request('/api/%s' % (api_endpoint) )
-        assert resp.status == 200, 'not a 200 but a %d from fetching %s: %s' % (resp.status, api_endpoint, cont)
+        assert resp.status == 200, ('not a 200 but a %d from fetching %s: %s' %
+                                    (resp.status, api_endpoint, cont))
         data = json.loads(cont)
 
-        table = self.table(['Title', 'Poster', 'Views', 'URL']) 
+        table = self.table(['Title', 'Poster', 'Views', 'URL'])
         for sharedfile in data[api_responsekey]:
-            table.add_row([sharedfile['title'] or sharedfile['name'], sharedfile['user']['name'], sharedfile['views'], sharedfile['permalink_page']])
+            table.add_row([sharedfile['title'] or sharedfile['name'],
+                           sharedfile['user']['name'],
+                           sharedfile['views'],
+                           sharedfile['permalink_page']])
         table.printt()
 
 
@@ -159,59 +177,70 @@ class Mlkshk(Termtool):
     @authd
     def api(self, args, client):
         resp, cont = client.request('/api/%s' % (args.api) )
-        assert resp.status == 200, 'not a 200 but a %d from fetching: %s' % (resp.status,  cont)
+        assert resp.status == 200, ('not a 200 but a %d from fetching: %s' %
+                                    (resp.status, cont))
         data = json.loads(cont)
-        print json.dumps(data,indent=2)
+        print json.dumps(data, indent=2)
 
 
     @subcommand(help='files you "liked" most recently')
     @authd
     def favorites(self, args, client):
-        self.sharedfiles(args, client, 'favorites','favorites')
+        self.sharedfiles(args, client, 'favorites', 'favorites')
 
     @subcommand(help='most recent files uploaded')
     @authd
     def incoming(self, args, client):
-        self.sharedfiles(args, client, 'incoming','incoming')
-        
+        self.sharedfiles(args, client, 'incoming', 'incoming')
+
 
     @subcommand(help='files posted by users you follow')
     @authd
     def friends(self, args, client):
-        self.sharedfiles(args, client, 'friends','friend_shake')
+        self.sharedfiles(args, client, 'friends', 'friend_shake')
 
-        
+
     @subcommand(help='list the most recent "magic" files')
     @authd
     def magic(self, args, client):
-        self.sharedfiles(args, client, 'magicfiles','magicfiles')
+        self.sharedfiles(args, client, 'magicfiles', 'magicfiles')
 
     @subcommand(help='list the most recent files on a specified shake')
     @argument('shake_id', help='sharekey of the file to like')
     @authd
     def shake(self, args, client):
-        shake_id=self.resolve_shake_id(client,args.shake_id)   # Take Either a Numeric or Named Shake ID (currently only supports the authorized users shakes for name resolution)
-        self.sharedfiles(args, client, 'shakes/%s'%(shake_id),'sharedfiles')
+        # Take Either a Numeric or Named Shake ID
+        # currently only supports the authorized user's shakes
+        #   for name resolution)
+        shake_id=self.resolve_shake_id(client, args.shake_id)
+        self.sharedfiles(args, client, 'shakes/%s'%(shake_id), 'sharedfiles')
 
 
     @subcommand(help='list your shakes')
     @authd
     def shakes(self, args, client):
         resp, cont = client.request('/api/shakes')
-        assert resp.status == 200, 'not a 200 but a %d from fetching shakes: %s' % (resp.status, cont)
+        assert resp.status == 200, ('not a 200 but a %d from fetching shakes: %s' %
+                                    (resp.status, cont))
         data = json.loads(cont)
 
         table = self.table(['ID', 'Name', 'Owner', 'Type', 'URL'])
         for shake in data['shakes']:
-            table.add_row([shake['id'], shake['name'], shake['owner']['name'], shake['type'], shake['url']])
+            table.add_row([shake['id'],
+                           shake['name'],
+                           shake['owner']['name'],
+                           shake['type'],
+                           shake['url']])
         table.printt()
 
     @subcommand(help='"like" a file into your favorites')
     @argument('sharekey', help='sharekey of the file to like')
     @authd
     def like(self, args, client):
-        resp, cont = client.request('/api/sharedfile/%s/like' % args.sharekey.upper(), 'POST', '')
-        assert resp.status == 200, 'not a 200 but a %d from "like"ing a file: %s' % (resp.status, cont)
+        resp, cont = client.request('/api/sharedfile/%s/like' %
+                                    args.sharekey.upper(), 'POST', '')
+        assert resp.status == 200, ('not a 200 but a %d from "like"ing a file: %s' %
+                                    (resp.status, cont))
         data = json.loads(cont)
         logging.info("Liked! File has %d likes", data['likes'])
 
@@ -227,8 +256,11 @@ class Mlkshk(Termtool):
             'file': open(args.file, 'rb'),
         }
         if args.shake:
-            # Take Either a Numeric or Named Shake ID (currently only supports the authorized users shakes for name resolution)
-            request['shake_id'] = self.resolve_shake_id(client,args.shake)
+            # Take Either a Numeric or Named Shake ID
+            # currently only supports the authorized user's shakes
+            #   for name resolution)
+            request['shake_id'] = self.resolve_shake_id(client, args.shake)
+
         if args.title:
             request['title'] = args.title
         if args.description:
@@ -269,7 +301,8 @@ class Mlkshk(Termtool):
                 _, _, value = www_auth_header.partition('MAC realm="mlkshk" ')
                 if value:
                     www_auth_data = urllib2.parse_keqv_list(urllib2.parse_http_list(value))
-                    logging.error('%(error)s error authenticating to MLKSHK: %(error_description)s' % www_auth_data)
+                    logging.error('%(error)s error authenticating to MLKSHK: %(error_description)s' %
+                                  www_auth_data)
                     return
 
         logging.error(str(exc))
