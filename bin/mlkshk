@@ -135,30 +135,21 @@ class Mlkshk(Termtool):
 
         print "Configured!"
 
-    def resolve_shake_id(self, client, shake_id):
-        # If the shake_id matches a shake name,
-        #     return the ID,
-        # otherwise
-        #     return the shake_id itself
-
-        rvalue = shake_id
+    def resolve_shake_id(self, client, shake_input):
         resp, cont = client.request('/api/shakes')
         assert resp.status == 200, ('not a 200 but a %d from fetching shakes: %s' %
-                                    (resp.status, cont)
+                                    (resp.status, cont))
         data = json.loads(cont)
 
         for shake in data['shakes']:
-            if shake['name'] == shake_id:
-                rvalue = shake['id']
-                break
+            if shake['name'] == shake_input:
+                return shake['id']
 
-        return rvalue
+        return shake_input
 
 
-    # General Function for API Endpointss that return list of sharedfiles
-    # Including:   MAGIC,FRIENDS,FAVORITES,SHAKE(shake_id)
-    def sharedfiles(self, args, client, api_endpoint, api_responsekey):
-        resp, cont = client.request('/api/%s' % (api_endpoint) )
+    def show_sharedfiles(self, args, client, api_endpoint, api_responsekey):
+        resp, cont = client.request('/api/%s' % api_endpoint )
         assert resp.status == 200, ('not a 200 but a %d from fetching %s: %s' %
                                     (resp.status, api_endpoint, cont))
         data = json.loads(cont)
@@ -172,48 +163,45 @@ class Mlkshk(Termtool):
         table.printt()
 
 
-    @subcommand(help='files added to mlkshk most recently')
-    @argument('api',help='generic api call')
+    @subcommand(help='show the json output of mlkshk api call')
+    @argument('endpoint',help='the api endpoint to call')
     @authd
     def api(self, args, client):
-        resp, cont = client.request('/api/%s' % (args.api) )
+        resp, cont = client.request('/api/%s' % args.endpoint )
         assert resp.status == 200, ('not a 200 but a %d from fetching: %s' %
                                     (resp.status, cont))
         data = json.loads(cont)
-        print json.dumps(data, indent=2)
+        print json.dumps(data, indent=4,sort_keys=True)
 
 
-    @subcommand(help='files you "liked" most recently')
+    @subcommand(help='list the files you "liked" most recently')
     @authd
     def favorites(self, args, client):
-        self.sharedfiles(args, client, 'favorites', 'favorites')
+        self.show_sharedfiles(args, client, 'favorites', 'favorites')
 
-    @subcommand(help='most recent files uploaded')
+    @subcommand(help='list most recent files uploaded')
     @authd
     def incoming(self, args, client):
-        self.sharedfiles(args, client, 'incoming', 'incoming')
+        self.show_sharedfiles(args, client, 'incoming', 'incoming')
 
 
-    @subcommand(help='files posted by users you follow')
+    @subcommand(help='list files posted by users you follow')
     @authd
     def friends(self, args, client):
-        self.sharedfiles(args, client, 'friends', 'friend_shake')
+        self.show_sharedfiles(args, client, 'friends', 'friend_shake')
 
 
     @subcommand(help='list the most recent "magic" files')
     @authd
     def magic(self, args, client):
-        self.sharedfiles(args, client, 'magicfiles', 'magicfiles')
+        self.show_sharedfiles(args, client, 'magicfiles', 'magicfiles')
 
     @subcommand(help='list the most recent files on a specified shake')
-    @argument('shake_id', help='sharekey of the file to like')
+    @argument('shake', help='shake name or shake id of the shake to use')
     @authd
     def shake(self, args, client):
-        # Take Either a Numeric or Named Shake ID
-        # currently only supports the authorized user's shakes
-        #   for name resolution)
-        shake_id=self.resolve_shake_id(client, args.shake_id)
-        self.sharedfiles(args, client, 'shakes/%s'%(shake_id), 'sharedfiles')
+        shake_id = self.resolve_shake_id(client, args.shake)
+        self.show_sharedfiles(args, client, 'shakes/%s' % shake_id, 'sharedfiles')
 
 
     @subcommand(help='list your shakes')
@@ -256,9 +244,6 @@ class Mlkshk(Termtool):
             'file': open(args.file, 'rb'),
         }
         if args.shake:
-            # Take Either a Numeric or Named Shake ID
-            # currently only supports the authorized user's shakes
-            #   for name resolution)
             request['shake_id'] = self.resolve_shake_id(client, args.shake)
 
         if args.title:
