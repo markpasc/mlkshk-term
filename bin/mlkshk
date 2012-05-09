@@ -136,6 +136,7 @@ class Mlkshk(Termtool):
         print "Configured!"
 
     def resolve_shake_id(self, client, shake_input):
+        """Resolve shake_input to numeric shake_id; Prefer to match shake name if ambiguous"""
         resp, cont = client.request('/api/shakes')
         assert resp.status == 200, ('not a 200 but a %d from fetching shakes: %s' %
                                     (resp.status, cont))
@@ -148,11 +149,14 @@ class Mlkshk(Termtool):
         return shake_input
 
 
-    def show_sharedfiles(self, args, client, api_endpoint, api_responsekey):
+    def show_sharedfiles(self, args, client, api_endpoint, api_responsekey=None):
         resp, cont = client.request('/api/%s' % api_endpoint )
         assert resp.status == 200, ('not a 200 but a %d from fetching %s: %s' %
                                     (resp.status, api_endpoint, cont))
         data = json.loads(cont)
+
+        if api_responsekey is None:
+            api_responsekey = api_endpoint
 
         table = self.table(['Title', 'Poster', 'Views', 'URL'])
         for sharedfile in data[api_responsekey]:
@@ -177,12 +181,12 @@ class Mlkshk(Termtool):
     @subcommand(help='list the files you "liked" most recently')
     @authd
     def favorites(self, args, client):
-        self.show_sharedfiles(args, client, 'favorites', 'favorites')
+        self.show_sharedfiles(args, client, 'favorites')
 
     @subcommand(help='list most recent files uploaded')
     @authd
     def incoming(self, args, client):
-        self.show_sharedfiles(args, client, 'incoming', 'incoming')
+        self.show_sharedfiles(args, client, 'incoming')
 
 
     @subcommand(help='list files posted by users you follow')
@@ -194,7 +198,7 @@ class Mlkshk(Termtool):
     @subcommand(help='list the most recent "magic" files')
     @authd
     def magic(self, args, client):
-        self.show_sharedfiles(args, client, 'magicfiles', 'magicfiles')
+        self.show_sharedfiles(args, client, 'magicfiles')
 
     @subcommand(help='list the most recent files on a specified shake')
     @argument('shake', help='shake name or shake id of the shake to use')
